@@ -30,7 +30,7 @@ def get_readable_file_size(size_bytes):
 @bot.add_cmd(cmd="speedtest")
 async def speedtest_cmd(bot: BOT, message: Message):
     """Run a network speed test and display the results"""
-    speed_msg = await message.reply("<i>Initiating Speedtest...</i>")
+    speed_msg = await message.reply("<code>Initiating speedtest-cli...</code>")
     
     try:
         test = Speedtest()
