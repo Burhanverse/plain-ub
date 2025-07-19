@@ -7,11 +7,22 @@ def get_readable_file_size(size_bytes):
     """Convert bytes to human readable format"""
     if size_bytes == 0:
         return "0B"
+    
     size_name = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
-    i = int(size_bytes.bit_length() // 10)
+    
+    # Convert to int if it's a float, and handle the calculation properly
+    size_bytes = abs(int(size_bytes))
+    
+    if size_bytes == 0:
+        return "0B"
+    
+    # Calculate the appropriate unit
+    import math
+    i = int(math.floor(math.log(size_bytes, 1024)))
     if i >= len(size_name):
         i = len(size_name) - 1
-    p = 1 << (i * 10)
+    
+    p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return f"{s} {size_name[i]}"
 
