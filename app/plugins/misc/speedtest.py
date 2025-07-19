@@ -75,12 +75,18 @@ async def speedtest_cmd(bot: BOT, message: Message):
 ┖ <b>ISP Rating:</b> <code>{result['client']['isprating']}</code>
 """
         
-        # Try to send with photo, fallback to text only
+        # Try to send with photo first, then fallback to text only
+        photo_sent = False
         try:
             await message.reply_photo(photo=result["share"], caption=string_speed)
             await speed_msg.delete()
+            photo_sent = True
         except Exception as photo_error:
             LOGGER.warning(f"Failed to send photo: {photo_error}")
+            photo_sent = False
+        
+        # If photo failed, send as text message
+        if not photo_sent:
             await speed_msg.edit(string_speed)
             
     except Exception as e:
