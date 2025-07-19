@@ -78,7 +78,7 @@ async def speedtest_cmd(bot: BOT, message: Message):
         # Try to send with photo first, then fallback to text only
         photo_sent = False
         try:
-            await message.reply_photo(photo=result["share"], caption=string_speed)
+            await message.reply_photo(photo=result["share"])
             await speed_msg.delete()
             photo_sent = True
         except Exception as photo_error:
