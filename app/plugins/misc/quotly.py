@@ -125,24 +125,6 @@ async def quote_pic(bot: BOT, message: Message):
         # Draw text
         draw.text((x, y), formatted_text, font=font, fill="white", align="center")
         
-        # Add author name
-        try:
-            user = await bot.get_chat(user_id)
-            author_name = user.first_name or "Unknown"
-        except:
-            author_name = "Unknown"
-            
-        credit_text = f"— {author_name}"
-        
-        try:
-            small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 30)
-        except:
-            small_font = font
-            
-        credit_bbox = draw.textbbox((0, 0), credit_text, font=small_font)
-        credit_width = credit_bbox[2] - credit_bbox[0]
-        draw.text(((w - credit_width) // 2, y + text_height + 20), credit_text, font=small_font, fill="white")
-        
         # Save to BytesIO
         output = io.BytesIO()
         if "sticker" in flags:
@@ -189,14 +171,12 @@ async def quote_sticker(bot: BOT, message: Message):
         if not reply:
             return await message.reply("<b>ERROR:</b> <i>Reply to a message to create quote sticker</i>")
         quote_text = reply.text or reply.caption or "Media message"
-        author = reply.from_user.first_name if reply.from_user else "Unknown"
         
     elif cmd == "rq":
         # Quote with replied message context
         if not reply:
             return await message.reply("<b>ERROR:</b> <i>Reply to a message to create quote sticker with context</i>")
         quote_text = reply.text or reply.caption or "Media message"
-        author = reply.from_user.first_name if reply.from_user else "Unknown"
         
     elif cmd == "fq":
         # Fake quote - needs user and text
@@ -213,15 +193,14 @@ async def quote_sticker(bot: BOT, message: Message):
         username = parts[0]
         quote_text = parts[1]
         
-        # Try to get user info
+        # Try to get user info for fake quotes (optional)
         try:
             if username.startswith("@"):
                 user = await bot.get_chat(username)
             else:
                 user = await bot.get_chat(int(username))
-            author = user.first_name or "Unknown"
         except:
-            author = username.replace("@", "")
+            pass
     
     # Create simple quote sticker using QuotLyBot
     status_msg = await message.reply("<code>Creating quote sticker...</code>")
@@ -235,8 +214,7 @@ async def quote_sticker(bot: BOT, message: Message):
         ) as convo:
             
             # Send the text to quote
-            formatted_quote = f"{quote_text}\n\n— {author}"
-            await convo.send_message(text=formatted_quote)
+            await convo.send_message(text=quote_text)
             
             # Wait for response
             response = await convo.get_response(timeout=30)
@@ -377,14 +355,12 @@ async def simple_quote(bot: BOT, message: Message):
     # Get the text to quote
     if reply and reply.text:
         quote_text = reply.text
-        author = reply.from_user.first_name if reply.from_user else "Unknown"
     elif text_input:
         quote_text = text_input
-        author = message.from_user.first_name if message.from_user else "Unknown"
     else:
         return await message.reply("<b>ERROR:</b> <i>No text found to quote</i>")
     
     # Format the quote
-    formatted_quote = f'<blockquote>"{quote_text}"</blockquote>\n\n<i>— {author}</i>'
+    formatted_quote = f'<blockquote>"{quote_text}"</blockquote>'
     
     await message.reply(formatted_quote)
