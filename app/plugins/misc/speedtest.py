@@ -50,7 +50,7 @@ async def speedtest_cmd(bot: BOT, message: Message):
         return
     
     try:
-        # Update progress
+        # Update progress with different messages to avoid MESSAGE_NOT_MODIFIED error
         await speed_msg.edit("<code>Finding best server...</code>")
         test.get_best_server()
         
@@ -63,6 +63,8 @@ async def speedtest_cmd(bot: BOT, message: Message):
         if send_image:
             await speed_msg.edit("<code>Generating results image...</code>")
             test.results.share()
+        else:
+            await speed_msg.edit("<code>Processing results...</code>")
         
         result = test.results.dict()
         
@@ -97,18 +99,43 @@ async def speedtest_cmd(bot: BOT, message: Message):
                     photo=result["share"], 
                     caption=speed_text
                 )
-                await speed_msg.delete()
+                # Delete the status message after successful photo send
+                try:
+                    await speed_msg.delete()
+                except Exception:
+                    pass  # Ignore delete errors
             except Exception as photo_error:
                 LOGGER.warning(f"Failed to send image: {photo_error}")
-                await speed_msg.edit(
-                    f"{speed_text}\n\n<b>Note:</b> <i>Image generation failed, showing text results</i>"
-                )
+                try:
+                    await speed_msg.edit(
+                        f"{speed_text}\n\n<b>Note:</b> <i>Image generation failed, showing text results</i>"
+                    )
+                except Exception:
+                    # Fallback: send as new message if edit fails
+                    await message.reply(
+                        f"{speed_text}\n\n<b>Note:</b> <i>Image generation failed, showing text results</i>"
+                    )
         else:
             # Send text only
-            await speed_msg.edit(speed_text)
+            try:
+                await speed_msg.edit(speed_text)
+            except Exception:
+                # Fallback: send as new message if edit fails
+                await message.reply(speed_text)
+                try:
+                    await speed_msg.delete()
+                except Exception:
+                    pass
             
     except Exception as e:
         LOGGER.error(f"Speedtest error: {str(e)}")
-        await speed_msg.edit(
-            f"<b>ERROR:</b> <i>Speedtest failed: {str(e)}</i>"
-        )
+        error_msg = f"<b>ERROR:</b> <i>Speedtest failed: {str(e)}</i>"
+        try:
+            await speed_msg.edit(error_msg)
+        except Exception:
+            # Fallback: send as new message if edit fails
+            await message.reply(error_msg)
+            try:
+                await speed_msg.delete()
+            except Exception:
+                pass
