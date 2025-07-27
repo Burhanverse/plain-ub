@@ -50,21 +50,13 @@ async def speedtest_cmd(bot: BOT, message: Message):
         return
     
     try:
-        # Update progress with different messages to avoid MESSAGE_NOT_MODIFIED error
-        await speed_msg.edit("<code>Finding best server...</code>")
+        # Run the speed test without multiple progress updates
         test.get_best_server()
-        
-        await speed_msg.edit("<code>Testing download speed...</code>")
         test.download()
-        
-        await speed_msg.edit("<code>Testing upload speed...</code>")
         test.upload()
         
         if send_image:
-            await speed_msg.edit("<code>Generating results image...</code>")
             test.results.share()
-        else:
-            await speed_msg.edit("<code>Processing results...</code>")
         
         result = test.results.dict()
         
@@ -93,49 +85,16 @@ async def speedtest_cmd(bot: BOT, message: Message):
 • <b>Time:</b> <code>{result['timestamp']}</code>"""
         
         if send_image:
-            # Send image with caption
-            try:
-                await message.reply_photo(
-                    photo=result["share"], 
-                    caption=speed_text
-                )
-                # Delete the status message after successful photo send
-                try:
-                    await speed_msg.delete()
-                except Exception:
-                    pass  # Ignore delete errors
-            except Exception as photo_error:
-                LOGGER.warning(f"Failed to send image: {photo_error}")
-                try:
-                    await speed_msg.edit(
-                        f"{speed_text}\n\n<b>Note:</b> <i>Image generation failed, showing text results</i>"
-                    )
-                except Exception:
-                    # Fallback: send as new message if edit fails
-                    await message.reply(
-                        f"{speed_text}\n\n<b>Note:</b> <i>Image generation failed, showing text results</i>"
-                    )
+            # Send image as new message and delete status message
+            await message.reply_photo(
+                photo=result["share"], 
+                caption=speed_text
+            )
+            await speed_msg.delete()
         else:
-            # Send text only
-            try:
-                await speed_msg.edit(speed_text)
-            except Exception:
-                # Fallback: send as new message if edit fails
-                await message.reply(speed_text)
-                try:
-                    await speed_msg.delete()
-                except Exception:
-                    pass
+            # Send text by editing the status message
+            await speed_msg.edit(speed_text)
             
     except Exception as e:
         LOGGER.error(f"Speedtest error: {str(e)}")
-        error_msg = f"<b>ERROR:</b> <i>Speedtest failed: {str(e)}</i>"
-        try:
-            await speed_msg.edit(error_msg)
-        except Exception:
-            # Fallback: send as new message if edit fails
-            await message.reply(error_msg)
-            try:
-                await speed_msg.delete()
-            except Exception:
-                pass
+        await speed_msg.edit(f"<b>ERROR:</b> <i>Speedtest failed: {str(e)}</i>")
