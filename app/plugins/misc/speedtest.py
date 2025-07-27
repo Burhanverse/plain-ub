@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from speedtest import Speedtest, ConfigRetrievalError
 from app import BOT, bot, Message, LOGGER
 
