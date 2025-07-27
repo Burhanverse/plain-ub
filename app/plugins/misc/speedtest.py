@@ -32,7 +32,7 @@ async def speedtest_cmd(bot: BOT, message: Message):
     
     Usage:
     - speedtest - Show results in text format
-    - speedtest -i - Show results with image
+    - speedtest -i - Show results as image only
     """
     
     # Check for image flag
@@ -85,11 +85,8 @@ async def speedtest_cmd(bot: BOT, message: Message):
 • <b>Time:</b> <code>{result['timestamp']}</code>"""
         
         if send_image:
-            # Send image as new message and delete status message
-            await message.reply_photo(
-                photo=result["share"], 
-                caption=speed_text
-            )
+            # Send image only without caption and delete status message
+            await message.reply_photo(photo=result["share"])
             await speed_msg.delete()
         else:
             # Send text by editing the status message
