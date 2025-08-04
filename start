@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+if ! [ -d ".git" ] ; then
+    git init
+    bash ./scripts/ubcore.sh 
+fi
+
+while true; do
+    python3.12 -m app
+    exit_code=$?
+    [ $exit_code -ne 69 ] && break
+done
