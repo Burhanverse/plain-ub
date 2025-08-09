@@ -8,112 +8,19 @@ from urllib.parse import urlparse
 from app import BOT, bot, Message
 
 
-class SiteConfig:
-    """Intelligent site configuration based on URL analysis"""
+class IntelligentConfig:
+    """Dynamic configuration based on URL patterns and heuristics"""
     
-    # Heavy sites that need aggressive waiting and longer timeouts
-    HEAVY_SITES = {
-        'youtube.com', 'youtu.be', 'facebook.com', 'fb.com', 'reddit.com', 'redd.it',
-        'twitter.com', 'x.com', 'instagram.com', 'linkedin.com', 'tiktok.com',
-        'netflix.com', 'amazon.com', 'ebay.com', 'aliexpress.com', 'shopify.com',
-        'discord.com', 'slack.com', 'teams.microsoft.com', 'zoom.us',
-        'notion.so', 'figma.com', 'canva.com', 'miro.com', 'trello.com'
-    }
-    
-    # Sites that work better in mobile view
-    MOBILE_OPTIMIZED = {
-        'instagram.com', 'tiktok.com', 'snapchat.com', 'whatsapp.com',
-        'telegram.org', 'signal.org', 'pinterest.com'
-    }
-    
-    # Sites that benefit from full page screenshots
-    FULL_PAGE_SITES = {
-        'github.com', 'gitlab.com', 'stackoverflow.com', 'stackexchange.com',
-        'medium.com', 'dev.to', 'hashnode.com', 'codepen.io', 'jsfiddle.net',
-        'news.ycombinator.com', 'lobste.rs', 'hackernews.org'
-    }
-    
-    # News/article sites that need custom handling
-    NEWS_SITES = {
-        'bbc.com', 'cnn.com', 'reuters.com', 'ap.org', 'bloomberg.com',
-        'techcrunch.com', 'theverge.com', 'arstechnica.com', 'wired.com',
-        'wikipedia.org', 'wikimedia.org'
-    }
-
     @staticmethod
     def analyze_url(url: str) -> dict:
-        """Analyze URL and return optimal screenshot configuration"""
+        """Dynamically analyze URL and return optimal screenshot configuration"""
         try:
             parsed = urlparse(url.lower())
             domain = parsed.netloc.replace('www.', '').replace('m.', '')
+            path = parsed.path.lower()
             
-            # Check for mobile subdomain
-            is_mobile_url = parsed.netloc.startswith(('m.', 'mobile.'))
-            
+            # Start with smart defaults
             config = {
-                'aggressive_wait': False,
-                'smart_wait': True,
-                'wait_for_network_idle': True,
-                'timeout': 30000,
-                'extra_wait_time': 0,
-                'mobile': is_mobile_url,
-                'full_page': False,
-                'format': 'png',
-                'width': 1920,
-                'height': 1080,
-                'quality': None,
-                'block_ads': True,
-                'disable_animations': True,
-                'delay': 1000
-            }
-            
-            # Heavy sites configuration
-            if any(site in domain for site in SiteConfig.HEAVY_SITES):
-                config.update({
-                    'aggressive_wait': True,
-                    'timeout': 60000,
-                    'extra_wait_time': 5000,
-                    'delay': 3000,
-                    'format': 'jpeg',
-                    'quality': 85
-                })
-            
-            # Mobile-optimized sites
-            if any(site in domain for site in SiteConfig.MOBILE_OPTIMIZED) and not is_mobile_url:
-                config.update({
-                    'mobile': True,
-                    'width': 375,
-                    'height': 812
-                })
-            
-            # Full page sites
-            if any(site in domain for site in SiteConfig.FULL_PAGE_SITES):
-                config.update({
-                    'full_page': True,
-                    'height': 1200  # Reasonable default for full page
-                })
-            
-            # News sites optimization
-            if any(site in domain for site in SiteConfig.NEWS_SITES):
-                config.update({
-                    'delay': 2000,
-                    'extra_wait_time': 2000,
-                    'width': 1200,
-                    'height': 1000
-                })
-            
-            # Special cases for common patterns
-            if 'blog' in domain or 'docs' in domain:
-                config.update({
-                    'full_page': True,
-                    'width': 1200
-                })
-            
-            return config
-            
-        except Exception:
-            # Fallback to default config
-            return {
                 'aggressive_wait': False,
                 'smart_wait': True,
                 'wait_for_network_idle': True,
@@ -129,6 +36,151 @@ class SiteConfig:
                 'disable_animations': True,
                 'delay': 1000
             }
+            
+            # Mobile detection from URL patterns
+            if (parsed.netloc.startswith(('m.', 'mobile.', 'touch.')) or 
+                'mobile' in path or '/m/' in path):
+                config.update({
+                    'mobile': True,
+                    'width': 375,
+                    'height': 812
+                })
+            
+            # Social media patterns (heavy JS, need aggressive wait)
+            social_patterns = ['facebook', 'instagram', 'twitter', 'tiktok', 'youtube', 
+                             'linkedin', 'snapchat', 'discord', 'telegram', 'whatsapp']
+            if any(pattern in domain for pattern in social_patterns):
+                config.update({
+                    'aggressive_wait': True,
+                    'timeout': 60000,
+                    'extra_wait_time': 5000,
+                    'delay': 3000,
+                    'format': 'jpeg',
+                    'quality': 85
+                })
+            
+            # Video/streaming platforms (very heavy)
+            video_patterns = ['youtube', 'netflix', 'twitch', 'vimeo', 'dailymotion']
+            if any(pattern in domain for pattern in video_patterns):
+                config.update({
+                    'aggressive_wait': True,
+                    'timeout': 70000,
+                    'extra_wait_time': 8000,
+                    'delay': 5000,
+                    'format': 'jpeg',
+                    'quality': 80
+                })
+            
+            # E-commerce sites (dynamic content)
+            ecommerce_patterns = ['shop', 'store', 'buy', 'cart', 'amazon', 'ebay', 
+                                'aliexpress', 'etsy', 'shopify']
+            if (any(pattern in domain for pattern in ecommerce_patterns) or 
+                any(pattern in path for pattern in ['/shop', '/store', '/buy', '/cart'])):
+                config.update({
+                    'aggressive_wait': True,
+                    'timeout': 45000,
+                    'extra_wait_time': 3000,
+                    'delay': 2000
+                })
+            
+            # Developer/code platforms (good for full page)
+            code_patterns = ['github', 'gitlab', 'bitbucket', 'codepen', 'jsfiddle', 
+                           'replit', 'codesandbox', 'stackoverflow', 'stackexchange']
+            if (any(pattern in domain for pattern in code_patterns) or 
+                'docs' in domain or 'doc.' in domain or 
+                any(pattern in path for pattern in ['/docs', '/doc', '/api', '/wiki'])):
+                config.update({
+                    'full_page': True,
+                    'width': 1200,
+                    'height': 1400,
+                    'delay': 2000
+                })
+            
+            # News and media sites
+            news_patterns = ['news', 'cnn', 'bbc', 'reuters', 'bloomberg', 'techcrunch',
+                           'theverge', 'arstechnica', 'medium', 'blog']
+            if (any(pattern in domain for pattern in news_patterns) or 
+                'blog' in domain or '/blog' in path or '/news' in path or 
+                '/article' in path or '/post' in path):
+                config.update({
+                    'delay': 2000,
+                    'extra_wait_time': 2000,
+                    'width': 1200,
+                    'height': 1000
+                })
+            
+            # SPA (Single Page Applications) indicators - need more wait time
+            spa_indicators = ['app', 'dashboard', 'admin', 'panel', 'console']
+            if (any(indicator in domain for indicator in spa_indicators) or
+                any(indicator in path for indicator in ['/app', '/dashboard', '/admin', '/panel'])):
+                config.update({
+                    'aggressive_wait': True,
+                    'timeout': 50000,
+                    'extra_wait_time': 4000,
+                    'delay': 3000
+                })
+            
+            # Banking/financial sites (usually heavy and secure)
+            finance_patterns = ['bank', 'financial', 'finance', 'pay', 'wallet', 'crypto']
+            if any(pattern in domain for pattern in finance_patterns):
+                config.update({
+                    'timeout': 45000,
+                    'extra_wait_time': 3000,
+                    'delay': 2000,
+                    'disable_animations': True
+                })
+            
+            # Educational platforms
+            edu_patterns = ['edu', 'school', 'university', 'course', 'learn', 'tutorial']
+            if (any(pattern in domain for pattern in edu_patterns) or
+                domain.endswith('.edu')):
+                config.update({
+                    'full_page': True,
+                    'width': 1200,
+                    'height': 1200
+                })
+            
+            # CDN or static sites (usually fast)
+            cdn_patterns = ['cdn', 'static', 'assets', 's3', 'cloudfront']
+            if any(pattern in domain for pattern in cdn_patterns):
+                config.update({
+                    'timeout': 15000,
+                    'delay': 500,
+                    'extra_wait_time': 0
+                })
+            
+            # Localhost and development
+            if 'localhost' in domain or domain.startswith('127.0.0.1') or domain.startswith('192.168.'):
+                config.update({
+                    'timeout': 20000,
+                    'delay': 1000,
+                    'block_ads': False  # Dev sites usually don't have ads
+                })
+            
+            # HTTPS vs HTTP heuristic (HTTPS sites might be slower to establish connection)
+            if url.startswith('https://'):
+                config['delay'] = max(config['delay'], 1500)
+            
+            return config
+            
+        except Exception:
+            # Fallback to safe defaults that work for most sites
+            return {
+                'aggressive_wait': False,
+                'smart_wait': True,
+                'wait_for_network_idle': True,
+                'timeout': 30000,
+                'extra_wait_time': 2000,  # Slightly more conservative
+                'mobile': False,
+                'full_page': False,
+                'format': 'png',
+                'width': 1920,
+                'height': 1080,
+                'quality': None,
+                'block_ads': True,
+                'disable_animations': True,
+                'delay': 1500  # Slightly more conservative
+            }
 
 
 async def take_screenshot(url: str, retry_count: int = 0) -> tuple:
@@ -138,7 +190,7 @@ async def take_screenshot(url: str, retry_count: int = 0) -> tuple:
         url = "https://" + url
     
     # Get intelligent configuration for this URL
-    config = SiteConfig.analyze_url(url)
+    config = IntelligentConfig.analyze_url(url)
     
     payload = {
         "url": url,
@@ -270,18 +322,21 @@ async def take_ss(bot: BOT, message: Message):
     
     if not args:
         return await message.reply(
-            "<b>📸 WebSS - Smart Screenshot Tool</b>\n\n"
+            "<b>📸 WebSS - Dynamic Screenshot Tool</b>\n\n"
             "<b>Usage:</b> <code>ss [url]</code>\n\n"
-            "<b>🧠 Smart Features:</b>\n"
-            "• <i>Heavy sites</i> (YouTube, Facebook) → Aggressive waiting\n"
-            "• <i>Mobile sites</i> (Instagram, TikTok) → Mobile viewport\n"
-            "• <i>Code sites</i> (GitHub, docs) → Full page capture\n"
-            "• <i>News sites</i> → Optimized dimensions\n\n"
+            "<b>� AI Features:</b>\n"
+            "• <i>Social media</i> → Aggressive loading for JS-heavy sites\n"
+            "• <i>Video platforms</i> → Extra patience for streaming sites\n"
+            "• <i>Code platforms</i> → Full page capture for repositories\n"
+            "• <i>E-commerce</i> → Dynamic content loading\n"
+            "• <i>Mobile URLs</i> → Automatic mobile viewport\n"
+            "• <i>News/blogs</i> → Optimized article reading\n"
+            "• <i>Apps/dashboards</i> → SPA-aware timing\n\n"
             "<b>Examples:</b>\n"
             "<code>ss google.com</code>\n"
-            "<code>ss youtube.com</code>\n"
-            "<code>ss github.com/user/repo</code>\n\n"
-            "<i>💡 Tip: Reply to a message with a URL using</i> <code>ss</code> <i>to auto-capture!</i>"
+            "<code>ss any-website.com</code>\n"
+            "<code>ss localhost:3000</code>\n\n"
+            "<i>💡 Works intelligently with ANY website!</i>"
         )
     
     url = args[0].strip()
@@ -296,17 +351,19 @@ async def take_ss(bot: BOT, message: Message):
     
     try:
         # Get intelligent configuration
-        config = SiteConfig.analyze_url(url)
+        config = IntelligentConfig.analyze_url(url)
         
         # Update status based on detected configuration
-        if config['aggressive_wait']:
-            await m.edit("<code>🎯 Heavy site detected - Using aggressive mode...</code>")
+        if config['aggressive_wait'] and config['timeout'] > 60000:
+            await m.edit("<code>📺 Video/streaming site detected - Maximum patience mode...</code>")
+        elif config['aggressive_wait']:
+            await m.edit("<code>⚡ Dynamic site detected - Using enhanced loading...</code>")
         elif config['mobile']:
-            await m.edit("<code>📱 Mobile-optimized site - Using mobile viewport...</code>")
+            await m.edit("<code>📱 Mobile layout detected - Using mobile viewport...</code>")
         elif config['full_page']:
-            await m.edit("<code>📄 Code/docs site - Capturing full page...</code>")
+            await m.edit("<code>📄 Documentation/code site - Capturing full content...</code>")
         else:
-            await m.edit("<code>📸 Capturing screenshot...</code>")
+            await m.edit("<code>📸 Standard site - Optimizing capture...</code>")
         
         # Take screenshot with intelligent settings
         result, used_config, error = await take_screenshot(url)
@@ -320,13 +377,15 @@ async def take_ss(bot: BOT, message: Message):
         await m.edit("<code>📤 Uploading screenshot...</code>")
         
         # Prepare caption with intelligent info
-        site_type = "🌐"
-        if used_config['aggressive_wait']:
-            site_type = "🎯 Heavy Site"
+        site_type = "🌐 Standard"
+        if used_config['aggressive_wait'] and used_config['timeout'] > 60000:
+            site_type = "📺 Video Platform"
+        elif used_config['aggressive_wait']:
+            site_type = "⚡ Dynamic Site"
         elif used_config['mobile']:
-            site_type = "📱 Mobile View"
+            site_type = "📱 Mobile Layout"
         elif used_config['full_page']:
-            site_type = "📄 Full Page"
+            site_type = "📄 Full Content"
         
         caption = (
             f"<b>🌍 Website:</b> <code>{url}</code>\n"
