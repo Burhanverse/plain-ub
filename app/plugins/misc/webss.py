@@ -322,21 +322,10 @@ async def take_ss(bot: BOT, message: Message):
     if url.endswith(('>', '"', "'")):
         url = url[:-1]
     
-    m = await message.reply("<code>Analyzing website...</code>")
+    m = await message.reply("<code>Capturing screenshot...</code>")
     
     try:
         config = IntelligentConfig.analyze_url(url)
-        
-        if config['aggressive_wait'] and config['timeout'] > 60000:
-            await m.edit("<code>Video/streaming site detected - Using maximum patience mode...</code>")
-        elif config['aggressive_wait']:
-            await m.edit("<code>Dynamic site detected - Using enhanced loading...</code>")
-        elif config['mobile']:
-            await m.edit("<code>Mobile layout detected - Using mobile viewport...</code>")
-        elif config['full_page']:
-            await m.edit("<code>Documentation/code site - Capturing full content...</code>")
-        else:
-            await m.edit("<code>Standard site - Optimizing capture...</code>")
         
         result, used_config, error = await take_screenshot(url)
         
