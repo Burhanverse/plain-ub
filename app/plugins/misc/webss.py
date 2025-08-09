@@ -18,8 +18,7 @@ class IntelligentConfig:
             parsed = urlparse(url.lower())
             domain = parsed.netloc.replace('www.', '').replace('m.', '')
             path = parsed.path.lower()
-            
-            # Start with smart defaults
+
             config = {
                 'aggressive_wait': False,
                 'smart_wait': True,
@@ -37,7 +36,6 @@ class IntelligentConfig:
                 'delay': 1000
             }
             
-            # Mobile detection from URL patterns
             if (parsed.netloc.startswith(('m.', 'mobile.', 'touch.')) or 
                 'mobile' in path or '/m/' in path):
                 config.update({
@@ -46,7 +44,6 @@ class IntelligentConfig:
                     'height': 812
                 })
             
-            # Social media patterns (heavy JS, need aggressive wait)
             social_patterns = ['facebook', 'instagram', 'twitter', 'tiktok', 'youtube', 
                              'linkedin', 'snapchat', 'discord', 'telegram', 'whatsapp']
             if any(pattern in domain for pattern in social_patterns):
@@ -59,7 +56,6 @@ class IntelligentConfig:
                     'quality': 85
                 })
             
-            # Video/streaming platforms (very heavy)
             video_patterns = ['youtube', 'netflix', 'twitch', 'vimeo', 'dailymotion']
             if any(pattern in domain for pattern in video_patterns):
                 config.update({
@@ -71,7 +67,6 @@ class IntelligentConfig:
                     'quality': 80
                 })
             
-            # E-commerce sites (dynamic content)
             ecommerce_patterns = ['shop', 'store', 'buy', 'cart', 'amazon', 'ebay', 
                                 'aliexpress', 'etsy', 'shopify']
             if (any(pattern in domain for pattern in ecommerce_patterns) or 
@@ -83,7 +78,6 @@ class IntelligentConfig:
                     'delay': 2000
                 })
             
-            # Developer/code platforms (good for full page)
             code_patterns = ['github', 'gitlab', 'bitbucket', 'codepen', 'jsfiddle', 
                            'replit', 'codesandbox', 'stackoverflow', 'stackexchange']
             if (any(pattern in domain for pattern in code_patterns) or 
@@ -96,20 +90,31 @@ class IntelligentConfig:
                     'delay': 2000
                 })
             
-            # News and media sites
             news_patterns = ['news', 'cnn', 'bbc', 'reuters', 'bloomberg', 'techcrunch',
                            'theverge', 'arstechnica', 'medium', 'blog']
             if (any(pattern in domain for pattern in news_patterns) or 
                 'blog' in domain or '/blog' in path or '/news' in path or 
                 '/article' in path or '/post' in path):
                 config.update({
+                    'full_page': True,
                     'delay': 2000,
                     'extra_wait_time': 2000,
                     'width': 1200,
                     'height': 1000
                 })
             
-            # SPA (Single Page Applications) indicators - need more wait time
+            full_page_paths = ['/docs', '/doc', '/documentation', '/guide', '/guides',
+                             '/news', '/article', '/articles', '/post', '/posts',
+                             '/blog', '/tutorial', '/tutorials', '/help', '/support',
+                             '/wiki', '/knowledge', '/manual', '/readme']
+            if any(pattern in path for pattern in full_page_paths):
+                config.update({
+                    'full_page': True,
+                    'width': 1200,
+                    'height': 1400,
+                    'delay': 2000
+                })
+            
             spa_indicators = ['app', 'dashboard', 'admin', 'panel', 'console']
             if (any(indicator in domain for indicator in spa_indicators) or
                 any(indicator in path for indicator in ['/app', '/dashboard', '/admin', '/panel'])):
@@ -120,7 +125,6 @@ class IntelligentConfig:
                     'delay': 3000
                 })
             
-            # Banking/financial sites (usually heavy and secure)
             finance_patterns = ['bank', 'financial', 'finance', 'pay', 'wallet', 'crypto']
             if any(pattern in domain for pattern in finance_patterns):
                 config.update({
@@ -130,7 +134,6 @@ class IntelligentConfig:
                     'disable_animations': True
                 })
             
-            # Educational platforms
             edu_patterns = ['edu', 'school', 'university', 'course', 'learn', 'tutorial']
             if (any(pattern in domain for pattern in edu_patterns) or
                 domain.endswith('.edu')):
@@ -140,7 +143,6 @@ class IntelligentConfig:
                     'height': 1200
                 })
             
-            # CDN or static sites (usually fast)
             cdn_patterns = ['cdn', 'static', 'assets', 's3', 'cloudfront']
             if any(pattern in domain for pattern in cdn_patterns):
                 config.update({
@@ -157,20 +159,18 @@ class IntelligentConfig:
                     'block_ads': False  # Dev sites usually don't have ads
                 })
             
-            # HTTPS vs HTTP heuristic (HTTPS sites might be slower to establish connection)
             if url.startswith('https://'):
                 config['delay'] = max(config['delay'], 1500)
             
             return config
             
         except Exception:
-            # Fallback to safe defaults that work for most sites
             return {
                 'aggressive_wait': False,
                 'smart_wait': True,
                 'wait_for_network_idle': True,
                 'timeout': 30000,
-                'extra_wait_time': 2000,  # Slightly more conservative
+                'extra_wait_time': 2000,
                 'mobile': False,
                 'full_page': False,
                 'format': 'png',
@@ -179,17 +179,15 @@ class IntelligentConfig:
                 'quality': None,
                 'block_ads': True,
                 'disable_animations': True,
-                'delay': 1500  # Slightly more conservative
+                'delay': 1500
             }
 
 
 async def take_screenshot(url: str, retry_count: int = 0) -> tuple:
     """Take screenshot using WebSS API with intelligent configuration"""
-    # Ensure URL has protocol
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     
-    # Get intelligent configuration for this URL
     config = IntelligentConfig.analyze_url(url)
     
     payload = {
@@ -210,7 +208,6 @@ async def take_screenshot(url: str, retry_count: int = 0) -> tuple:
         "disable_animations": config['disable_animations']
     }
     
-    # Add quality for JPEG
     if config['quality']:
         payload['quality'] = config['quality']
     
@@ -226,7 +223,6 @@ async def take_screenshot(url: str, retry_count: int = 0) -> tuple:
                 if response.status == 200:
                     data = await response.json()
                     if data.get("success") and data.get("data"):
-                        # Decode base64 image data
                         image_data = b64decode(data["data"])
                         file = BytesIO(image_data)
                         file.name = f"webss.{config['format']}"
@@ -239,7 +235,6 @@ async def take_screenshot(url: str, retry_count: int = 0) -> tuple:
                     
     except asyncio.TimeoutError:
         error_msg = "Screenshot timeout"
-        # Retry with reduced settings for heavy sites
         if retry_count == 0 and config['aggressive_wait']:
             fallback_config = config.copy()
             fallback_config.update({
@@ -304,14 +299,12 @@ async def take_ss(bot: BOT, message: Message):
     
     args = message.text.split()[1:] if len(message.text.split()) > 1 else []
     
-    # If no URL provided, try to extract from replied message
     if not args and message.reply_to_message:
         replied_text = message.reply_to_message.text or message.reply_to_message.caption or ""
-        # Enhanced URL extraction from replied message
         url_pattern = r'https?://[^\s<>\'"]*[^\s<>\'".,;!?]'
         urls = re.findall(url_pattern, replied_text)
         if urls:
-            args = [urls[0]]  # Use the first URL found
+            args = [urls[0]]
     
     if not args:
         return await message.reply(
@@ -333,7 +326,6 @@ async def take_ss(bot: BOT, message: Message):
     
     url = args[0].strip()
     
-    # Clean up URL if needed
     if url.startswith(('<', '"', "'")):
         url = url[1:]
     if url.endswith(('>', '"', "'")):
@@ -342,10 +334,8 @@ async def take_ss(bot: BOT, message: Message):
     m = await message.reply("<code>Analyzing website...</code>")
     
     try:
-        # Get intelligent configuration
         config = IntelligentConfig.analyze_url(url)
         
-        # Update status based on detected configuration
         if config['aggressive_wait'] and config['timeout'] > 60000:
             await m.edit("<code>Video/streaming site detected - Using maximum patience mode...</code>")
         elif config['aggressive_wait']:
@@ -357,7 +347,6 @@ async def take_ss(bot: BOT, message: Message):
         else:
             await m.edit("<code>Standard site - Optimizing capture...</code>")
         
-        # Take screenshot with intelligent settings
         result, used_config, error = await take_screenshot(url)
         
         if not result:
@@ -368,7 +357,6 @@ async def take_ss(bot: BOT, message: Message):
         
         await m.edit("<code>Uploading screenshot...</code>")
         
-        # Prepare caption with intelligent info
         site_type = "Standard"
         if used_config['aggressive_wait'] and used_config['timeout'] > 60000:
             site_type = "Video Platform"
@@ -386,18 +374,14 @@ async def take_ss(bot: BOT, message: Message):
             f"<b>Type:</b> <code>{site_type}</code>"
         )
         
-        # Add timing info for heavy sites
         if used_config['aggressive_wait']:
             caption += f"\n<b>Timeout:</b> <code>{used_config['timeout']/1000:.0f}s</code>"
         
-        # Send screenshot based on type and format
         photo, document = result, result
         
         if not used_config['full_page'] and used_config['format'] in ["png", "jpeg"]:
-            # For normal screenshots, send both document and compressed photo
             tasks = []
-            
-            # Always send as document for full quality
+
             tasks.append(
                 message.reply_document(
                     document, 
@@ -405,7 +389,6 @@ async def take_ss(bot: BOT, message: Message):
                 )
             )
             
-            # Send compressed version as photo for quick preview
             photo.seek(0)
             if used_config['format'] in ["png", "jpeg"]:
                 tasks.append(
@@ -417,7 +400,6 @@ async def take_ss(bot: BOT, message: Message):
             
             await asyncio.gather(*tasks, return_exceptions=True)
         else:
-            # For full page or other formats, send only as document
             await message.reply_document(
                 document,
                 caption=caption
