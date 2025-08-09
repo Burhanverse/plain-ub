@@ -151,15 +151,8 @@ class IntelligentConfig:
                     'extra_wait_time': 0
                 })
             
-            # Localhost and development
-            if 'localhost' in domain or domain.startswith('127.0.0.1') or domain.startswith('192.168.'):
-                config.update({
-                    'timeout': 20000,
-                    'delay': 1000,
-                    'block_ads': False  # Dev sites usually don't have ads
-                })
-            
             if url.startswith('https://'):
+                config['delay'] = max(config['delay'], 1500)
                 config['delay'] = max(config['delay'], 1500)
             
             return config
@@ -317,10 +310,8 @@ async def take_ss(bot: BOT, message: Message):
             "• Mobile URLs - Automatic mobile viewport\n"
             "• News/blogs - Optimized article reading\n"
             "• Apps/dashboards - SPA-aware timing\n\n"
-            "<b>Examples:</b>\n"
+            "<b>Example:</b>\n"
             "<code>ss google.com</code>\n"
-            "<code>ss github.com/user/repo</code>\n"
-            "<code>ss localhost:3000</code>\n\n"
             "<i>Tip: Reply to a message containing a URL with just 'ss' to automatically screenshot it</i>"
         )
     
