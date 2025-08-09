@@ -52,8 +52,7 @@ class IntelligentConfig:
                     'timeout': 60000,
                     'extra_wait_time': 5000,
                     'delay': 3000,
-                    'format': 'png',
-                    'quality': 85
+                    'format': 'png'
                 })
             
             video_patterns = ['youtube', 'netflix', 'twitch', 'vimeo', 'dailymotion']
@@ -63,8 +62,7 @@ class IntelligentConfig:
                     'timeout': 70000,
                     'extra_wait_time': 8000,
                     'delay': 5000,
-                    'format': 'png',
-                    'quality': 80
+                    'format': 'png'
                 })
             
             ecommerce_patterns = ['shop', 'store', 'buy', 'cart', 'amazon', 'ebay', 
@@ -103,8 +101,7 @@ class IntelligentConfig:
                     'extra_wait_time': 4000,
                     'width': 1200,
                     'height': 1000,
-                    'format': 'png',
-                    'quality': 85
+                    'format': 'png'
                 })
             
             full_page_paths = ['/docs', '/doc', '/documentation', '/guide', '/guides',
@@ -205,9 +202,6 @@ async def take_screenshot(url: str, retry_count: int = 0) -> tuple:
         "disable_animations": config['disable_animations']
     }
     
-    if config['quality']:
-        payload['quality'] = config['quality']
-    
     try:
         timeout = aiohttp.ClientTimeout(total=max(90, config['timeout'] // 1000 + 30))
         
@@ -265,9 +259,6 @@ async def take_screenshot_with_config(url: str, config: dict):
         "block_ads": config['block_ads'],
         "disable_animations": config['disable_animations']
     }
-    
-    if config.get('quality'):
-        payload['quality'] = config['quality']
     
     try:
         timeout = aiohttp.ClientTimeout(total=max(60, config['timeout'] // 1000 + 15))
