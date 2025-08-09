@@ -52,7 +52,7 @@ class IntelligentConfig:
                     'timeout': 60000,
                     'extra_wait_time': 5000,
                     'delay': 3000,
-                    'format': 'jpeg',
+                    'format': 'png',
                     'quality': 85
                 })
             
@@ -63,7 +63,7 @@ class IntelligentConfig:
                     'timeout': 70000,
                     'extra_wait_time': 8000,
                     'delay': 5000,
-                    'format': 'jpeg',
+                    'format': 'png',
                     'quality': 80
                 })
             
@@ -96,11 +96,15 @@ class IntelligentConfig:
                 'blog' in domain or '/blog' in path or '/news' in path or 
                 '/article' in path or '/post' in path):
                 config.update({
+                    'aggressive_wait': True,
+                    'timeout': 50000,
                     'full_page': True,
-                    'delay': 2000,
-                    'extra_wait_time': 2000,
+                    'delay': 3000,
+                    'extra_wait_time': 4000,
                     'width': 1200,
-                    'height': 1000
+                    'height': 1000,
+                    'format': 'png',
+                    'quality': 85
                 })
             
             full_page_paths = ['/docs', '/doc', '/documentation', '/guide', '/guides',
