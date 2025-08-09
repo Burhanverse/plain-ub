@@ -300,14 +300,7 @@ async def take_screenshot_with_config(url: str, config: dict):
 
 @bot.add_cmd(cmd="ss")
 async def take_ss(bot: BOT, message: Message):
-    """Take intelligent website screenshot
-    
-    Automatically optimizes settings based on the website:
-    - Heavy sites (YouTube, Facebook, etc.): Uses aggressive waiting
-    - Mobile sites: Automatically uses mobile viewport
-    - Code/docs sites: Takes full page screenshots
-    - News sites: Optimized dimensions and timing
-    """
+    """Take website screenshot with intelligent optimization"""
     
     args = message.text.split()[1:] if len(message.text.split()) > 1 else []
     
@@ -322,21 +315,20 @@ async def take_ss(bot: BOT, message: Message):
     
     if not args:
         return await message.reply(
-            "<b>📸 WebSS - Dynamic Screenshot Tool</b>\n\n"
             "<b>Usage:</b> <code>ss [url]</code>\n\n"
-            "<b>� AI Features:</b>\n"
-            "• <i>Social media</i> → Aggressive loading for JS-heavy sites\n"
-            "• <i>Video platforms</i> → Extra patience for streaming sites\n"
-            "• <i>Code platforms</i> → Full page capture for repositories\n"
-            "• <i>E-commerce</i> → Dynamic content loading\n"
-            "• <i>Mobile URLs</i> → Automatic mobile viewport\n"
-            "• <i>News/blogs</i> → Optimized article reading\n"
-            "• <i>Apps/dashboards</i> → SPA-aware timing\n\n"
+            "<b>Features:</b>\n"
+            "• Social media sites - Aggressive loading for JS-heavy sites\n"
+            "• Video platforms - Extra patience for streaming sites\n"
+            "• Code platforms - Full page capture for repositories\n"
+            "• E-commerce sites - Dynamic content loading\n"
+            "• Mobile URLs - Automatic mobile viewport\n"
+            "• News/blogs - Optimized article reading\n"
+            "• Apps/dashboards - SPA-aware timing\n\n"
             "<b>Examples:</b>\n"
             "<code>ss google.com</code>\n"
-            "<code>ss any-website.com</code>\n"
+            "<code>ss github.com/user/repo</code>\n"
             "<code>ss localhost:3000</code>\n\n"
-            "<i>💡 Works intelligently with ANY website!</i>"
+            "<i>Tip: Reply to a message containing a URL with just 'ss' to automatically screenshot it</i>"
         )
     
     url = args[0].strip()
@@ -347,7 +339,7 @@ async def take_ss(bot: BOT, message: Message):
     if url.endswith(('>', '"', "'")):
         url = url[:-1]
     
-    m = await message.reply("<code>🔍 Analyzing website...</code>")
+    m = await message.reply("<code>Analyzing website...</code>")
     
     try:
         # Get intelligent configuration
@@ -355,48 +347,48 @@ async def take_ss(bot: BOT, message: Message):
         
         # Update status based on detected configuration
         if config['aggressive_wait'] and config['timeout'] > 60000:
-            await m.edit("<code>📺 Video/streaming site detected - Maximum patience mode...</code>")
+            await m.edit("<code>Video/streaming site detected - Using maximum patience mode...</code>")
         elif config['aggressive_wait']:
-            await m.edit("<code>⚡ Dynamic site detected - Using enhanced loading...</code>")
+            await m.edit("<code>Dynamic site detected - Using enhanced loading...</code>")
         elif config['mobile']:
-            await m.edit("<code>📱 Mobile layout detected - Using mobile viewport...</code>")
+            await m.edit("<code>Mobile layout detected - Using mobile viewport...</code>")
         elif config['full_page']:
-            await m.edit("<code>📄 Documentation/code site - Capturing full content...</code>")
+            await m.edit("<code>Documentation/code site - Capturing full content...</code>")
         else:
-            await m.edit("<code>📸 Standard site - Optimizing capture...</code>")
+            await m.edit("<code>Standard site - Optimizing capture...</code>")
         
         # Take screenshot with intelligent settings
         result, used_config, error = await take_screenshot(url)
         
         if not result:
-            error_msg = f"<b>❌ ERROR:</b> <i>{error or 'Failed to capture screenshot'}</i>"
+            error_msg = f"<b>ERROR:</b> <i>{error or 'Failed to capture screenshot'}</i>"
             if "timeout" in str(error).lower():
-                error_msg += f"\n\n<i>💡 This site might be very slow. The WebSS API tried its best with {used_config['timeout']/1000:.0f}s timeout.</i>"
+                error_msg += f"\n\n<i>This site might be very slow. The WebSS API tried its best with {used_config['timeout']/1000:.0f}s timeout.</i>"
             return await m.edit(error_msg)
         
-        await m.edit("<code>📤 Uploading screenshot...</code>")
+        await m.edit("<code>Uploading screenshot...</code>")
         
         # Prepare caption with intelligent info
-        site_type = "🌐 Standard"
+        site_type = "Standard"
         if used_config['aggressive_wait'] and used_config['timeout'] > 60000:
-            site_type = "📺 Video Platform"
+            site_type = "Video Platform"
         elif used_config['aggressive_wait']:
-            site_type = "⚡ Dynamic Site"
+            site_type = "Dynamic Site"
         elif used_config['mobile']:
-            site_type = "📱 Mobile Layout"
+            site_type = "Mobile Layout"
         elif used_config['full_page']:
-            site_type = "📄 Full Content"
+            site_type = "Full Content"
         
         caption = (
-            f"<b>🌍 Website:</b> <code>{url}</code>\n"
-            f"<b>📐 Size:</b> <code>{used_config['width']}x{used_config['height']}</code>\n"
-            f"<b>🎨 Format:</b> <code>{used_config['format'].upper()}</code>\n"
-            f"<b>🏷 Type:</b> <code>{site_type}</code>"
+            f"<b>Website:</b> <code>{url}</code>\n"
+            f"<b>Size:</b> <code>{used_config['width']}x{used_config['height']}</code>\n"
+            f"<b>Format:</b> <code>{used_config['format'].upper()}</code>\n"
+            f"<b>Type:</b> <code>{site_type}</code>"
         )
         
         # Add timing info for heavy sites
         if used_config['aggressive_wait']:
-            caption += f"\n<b>⏱ Timeout:</b> <code>{used_config['timeout']/1000:.0f}s</code>"
+            caption += f"\n<b>Timeout:</b> <code>{used_config['timeout']/1000:.0f}s</code>"
         
         # Send screenshot based on type and format
         photo, document = result, result
@@ -409,7 +401,7 @@ async def take_ss(bot: BOT, message: Message):
             tasks.append(
                 message.reply_document(
                     document, 
-                    caption=caption + "\n\n<i>📎 Full quality version</i>"
+                    caption=caption + "\n\n<i>Full quality version</i>"
                 )
             )
             
@@ -419,7 +411,7 @@ async def take_ss(bot: BOT, message: Message):
                 tasks.append(
                     message.reply_photo(
                         photo, 
-                        caption=f"<i>🖼 Quick preview - see document for full quality</i>"
+                        caption="<i>Quick preview - see document for full quality</i>"
                     )
                 )
             
@@ -434,5 +426,5 @@ async def take_ss(bot: BOT, message: Message):
         await m.delete()
         
     except Exception as e:
-        error_msg = f"<b>💥 UNEXPECTED ERROR:</b> <code>{str(e)}</code>"
+        error_msg = f"<b>UNEXPECTED ERROR:</b> <code>{str(e)}</code>"
         await m.edit(error_msg)
