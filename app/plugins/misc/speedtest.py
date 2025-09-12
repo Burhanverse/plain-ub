@@ -10,7 +10,6 @@ def get_readable_file_size(size_bytes):
     
     size_name = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
     
-    # Convert to int if it's a float, and handle the calculation properly
     size_bytes = abs(int(size_bytes))
     
     if size_bytes == 0:
@@ -50,7 +49,6 @@ async def speedtest_cmd(bot: BOT, message: Message):
         return
     
     try:
-        # Run the speed test without multiple progress updates
         test.get_best_server()
         test.download()
         test.upload()
@@ -60,7 +58,6 @@ async def speedtest_cmd(bot: BOT, message: Message):
         
         result = test.results.dict()
         
-        # Format the results with PLAIN UB style
         speed_text = f"""<b>SPEEDTEST RESULTS</b>
 
 <b>Speed Test:</b>
@@ -85,11 +82,9 @@ async def speedtest_cmd(bot: BOT, message: Message):
 • <b>Time:</b> <code>{result['timestamp']}</code>"""
         
         if send_image:
-            # Send image only without caption and delete status message
             await message.reply_photo(photo=result["share"])
             await speed_msg.delete()
         else:
-            # Send text by editing the status message
             await speed_msg.edit(speed_text)
             
     except Exception as e:
