@@ -42,7 +42,7 @@ async def log_filter(_, bot: BOT, message: Message) -> bool:
     if chat.id == bot.me.id:
         return False
     # skip bot messages
-    if message.from_user.is_bot:
+    if message.from_user and message.from_user.is_bot:
         return False
     # skip your own messages
     if message.from_user and (message.from_user.is_self or message.outgoing):
