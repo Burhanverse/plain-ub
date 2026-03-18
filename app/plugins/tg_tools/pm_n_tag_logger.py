@@ -1,19 +1,20 @@
 import asyncio
-import datetime
 from collections import defaultdict
 
 from pyrogram import filters
-from pyrogram.enums import ChatType, MessageEntityType, ParseMode
+from pyrogram.enums import ChatType, ParseMode
 from pyrogram.errors import MessageIdInvalid
 from ub_core.utils.helpers import get_name
 
-from app import BOT, LOGGER, CustomDB, Message, bot, extra_config
+from app import BOT, CustomDB, Message, bot, extra_config
 
 SETTINGS = CustomDB["COMMON_SETTINGS"]
 
-LAST_PM_ID: int = 0
 MESSAGE_CACHE: dict[int, list[Message]] = defaultdict(list)
-FLOOD_LIST: list[int] = []
+FLOOD_LIST: set[int] = set()
+
+LAST_PM_ID: int = 0
+CHAT_TYPES = (ChatType.GROUP, ChatType.SUPERGROUP)
 
 
 async def init_task():
@@ -24,6 +25,141 @@ async def init_task():
     if pm_check:
         extra_config.PM_LOGGER = pm_check["value"]
 
+
+async def log_filter(_, bot: BOT, message: Message) -> bool:
+    # skip service messages
+    if message.service:
+        return False
+
+    chat = message.chat
+    # skip support messages like OTPs
+    if not chat or chat.is_support:
+        return False
+    # skip forward restricted
+    if message.has_protected_content or chat.has_protected_content:
+        return False
+    # skip saved messages
+    if chat.id == bot.me.id:
+        return False
+    # skip bot messages
+    if message.from_user.is_bot:
+        return False
+    # skip your own messages
+    if message.from_user and (message.from_user.is_self or message.outgoing):
+        return False
+    # finally see if loggers are enabled
+    if chat.type == ChatType.PRIVATE:
+        return extra_config.PM_LOGGER
+    elif message.mentioned and chat.type in CHAT_TYPES:
+        return extra_config.TAG_LOGGER
+    else:
+        return False
+
+
+@bot.on_message(filters=filters.create(log_filter))
+async def message_cacher(bot: BOT, message: Message):
+    chat_id = message.chat.id
+
+    if len(MESSAGE_CACHE[chat_id]) >= 10 and chat_id not in FLOOD_LIST:
+        bot.log.error(f"Message not Logged from chat: {get_name(message.chat)}")
+        FLOOD_LIST.add(chat_id)
+        return
+
+    FLOOD_LIST.discard(chat_id)
+    MESSAGE_CACHE[chat_id].append(message)
+    message.continue_propagation()
+
+
+@BOT.register_worker(interval=10, name="pm-tag-worker")
+async def pm_tag_worker():
+    if not (extra_config.TAG_LOGGER or extra_config.PM_LOGGER):
+        return
+
+    for key, val in MESSAGE_CACHE.copy().items():
+        if not val:
+            continue
+
+        for msg in val:
+            try:
+                await log_message(msg)
+            except Exception as e:
+                bot.log.error(e, exc_info=True)
+            finally:
+                MESSAGE_CACHE[key].remove(msg)
+
+            await asyncio.sleep(2)
+
+    new_data = {k: v for k, v in MESSAGE_CACHE.items() if v}
+    MESSAGE_CACHE.clear()
+    MESSAGE_CACHE.update(new_data)
+
+
+def get_info_to_log(message: Message) -> str | None:
+    if message.sender_chat:
+        mention, user_id = message.sender_chat.title, message.sender_chat.id
+    else:
+        mention, user_id = message.from_user.mention(style=ParseMode.HTML), message.from_user.id
+
+    if message.chat.type == ChatType.PRIVATE:
+        global LAST_PM_ID
+        if message.chat.id != LAST_PM_ID:
+            LAST_PM_ID = message.chat.id
+            return f"#PM\n{mention} [{user_id}]"
+        return None
+
+    return (
+        f"#TAG\n{mention} [{user_id}]\nMessage: \n<a href='{message.link}'>{message.chat.title}</a> ({message.chat.id})"
+    )
+
+
+async def log_message(message: Message) -> None:
+    # PM
+    if message.chat.type == ChatType.PRIVATE:
+        reply_to_message = None
+        thread_id = extra_config.PM_LOGGER_THREAD_ID
+    # Tag
+    else:
+        reply_to_message = message.reply_to_message
+        thread_id = extra_config.TAG_LOGGER_THREAD_ID
+
+    extra_info = get_info_to_log(message)
+    if extra_info:
+        await bot.send_message(
+            chat_id=extra_config.MESSAGE_LOGGER_CHAT,
+            text=extra_info,
+            message_thread_id=thread_id,
+            parse_mode=ParseMode.HTML,
+        )
+        await asyncio.sleep(1)
+
+    to_forward_ids = [message.id]
+
+    if reply_to_message:
+        to_forward_ids.insert(0, reply_to_message.id)
+
+    try:
+        # Try to schedule forward of messages
+        forwarded = await bot.forward_messages(
+            from_chat_id=message.chat.id,
+            chat_id=extra_config.MESSAGE_LOGGER_CHAT,
+            message_ids=to_forward_ids,
+            message_thread_id=thread_id,
+        )
+    except (MessageIdInvalid, BaseException):
+        await asyncio.sleep(1)
+        forwarded = []
+
+    if len(forwarded) == len(to_forward_ids):
+        return
+
+    [await m.delete() for m in forwarded]
+
+    if reply_to_message:
+        await reply_to_message.copy(chat_id=extra_config.MESSAGE_LOGGER_CHAT, message_thread_id=thread_id)
+
+    await asyncio.sleep(1)
+    sent_message = await message.copy(chat_id=extra_config.MESSAGE_LOGGER_CHAT, message_thread_id=thread_id)
+    await sent_message.reply("This message was deleted by sender.")
 
 @bot.add_cmd(cmd=["taglogger", "pmlogger"])
 async def logger_switch(bot: BOT, message: Message):
@@ -37,8 +173,7 @@ async def logger_switch(bot: BOT, message: Message):
 
     if "-c" in message.flags:
         await message.reply(
-            text=f"{text.capitalize()} Logger is enabled: <b>{getattr(extra_config, conf_str)}</b>!",
-            del_in=8,
+            text=f"{text.capitalize()} Logger is enabled: <b>{getattr(extra_config, conf_str)}</b>!", del_in=8
         )
         return
 
@@ -50,170 +185,3 @@ async def logger_switch(bot: BOT, message: Message):
         message.reply(text=f"{text.capitalize()} Logger is enabled: <b>{value}</b>!", del_in=8),
         bot.log_text(text=f"#{text.capitalize()}Logger is enabled: <b>{value}</b>!", type="info"),
     )
-
-
-BASIC_FILTERS = (
-    ~filters.channel
-    & ~filters.bot
-    & ~filters.service
-    & ~filters.chat(chats=[bot.me.id])
-    & ~filters.me
-    & ~filters.create(lambda _, __, m: m.chat.is_support)
-)
-
-
-@bot.on_message(
-    filters=BASIC_FILTERS & filters.private & filters.create(lambda _, __, ___: extra_config.PM_LOGGER),
-)
-async def pm_logger(bot: BOT, message: Message):
-    cache_message(message)
-
-
-TAG_FILTER = filters.create(lambda _, __, ___: extra_config.TAG_LOGGER)
-
-
-@bot.on_message(
-    filters=(BASIC_FILTERS & filters.reply & TAG_FILTER) & ~filters.private,
-)
-async def reply_logger(bot: BOT, message: Message):
-    if (
-        message.reply_to_message
-        and message.reply_to_message.from_user
-        and message.reply_to_message.from_user.id == bot.me.id
-    ):
-        cache_message(message)
-    message.continue_propagation()
-
-
-@bot.on_message(
-    filters=(BASIC_FILTERS & filters.mentioned & TAG_FILTER) & ~filters.private,
-)
-async def mention_logger(bot: BOT, message: Message):
-    for entity in message.entities or []:
-        if entity.type == MessageEntityType.MENTION and entity.user and entity.user.id == bot.me.id:
-            cache_message(message)
-    message.continue_propagation()
-
-
-@bot.on_message(
-    filters=(BASIC_FILTERS & (filters.text | filters.media) & TAG_FILTER) & ~filters.private,
-)
-async def username_logger(bot: BOT, message: Message):
-    text = message.text or message.caption or ""
-    if bot.me.username and f"@{bot.me.username}" in text:
-        cache_message(message)
-    message.continue_propagation()
-
-
-def cache_message(message: Message):
-    chat_id = message.chat.id
-    if len(MESSAGE_CACHE[chat_id]) >= 10 and chat_id not in FLOOD_LIST:
-        bot.log.error(f"Message not Logged from chat: {get_name(message.chat)}")
-        FLOOD_LIST.append(chat_id)
-        return
-    if chat_id in FLOOD_LIST:
-        FLOOD_LIST.remove(chat_id)
-    MESSAGE_CACHE[chat_id].append(message)
-
-
-@BOT.register_worker(interval=5, name="pm-tag-worker")
-async def worker():
-    if not (extra_config.TAG_LOGGER or extra_config.PM_LOGGER):
-        return
-
-    for key, val in MESSAGE_CACHE.copy().items():
-        if not val:
-            continue
-
-        for msg in val:
-            if msg.chat.type == ChatType.PRIVATE:
-                global LAST_PM_ID
-                await log_pm(message=msg, log_info=LAST_PM_ID != key)
-                LAST_PM_ID = key
-            else:
-                await log_chat(message=msg)
-
-            MESSAGE_CACHE[key].remove(msg)
-            await asyncio.sleep(5)
-
-        await asyncio.sleep(15)
-
-    new_data = {k: v for k, v in MESSAGE_CACHE.items() if v}
-    MESSAGE_CACHE.clear()
-    MESSAGE_CACHE.update(new_data)
-
-
-async def log_pm(message: Message, log_info: bool):
-    if log_info:
-        await bot.send_message(
-            chat_id=extra_config.MESSAGE_LOGGER_CHAT,
-            text=f"#PM\n{message.from_user.mention} [{message.from_user.id}]",
-            message_thread_id=extra_config.PM_LOGGER_THREAD_ID,
-        )
-    notice = (
-        f"{message.from_user.mention} [{message.from_user.id}] deleted this message."
-        f"\n\n---\n\n"
-        f"Message: \n<a href='{message.link}'>{message.chat.title or message.chat.first_name}</a> ({message.chat.id})"
-        f"\n\n---\n\n"
-        f"Caption:\n{message.caption or 'No Caption in media.'}"
-    )
-    await log_message(message=message, notice=notice, thread_id=extra_config.PM_LOGGER_THREAD_ID)
-
-
-async def log_chat(message: Message):
-    if message.sender_chat:
-        mention, u_id = message.sender_chat.title, message.sender_chat.id
-    else:
-        mention, u_id = message.from_user.mention, message.from_user.id
-    notice = (
-        f"{mention} [{u_id}] deleted this message."
-        f"\n\n---\n\n"
-        f"Message: \n<a href='{message.link}'>{message.chat.title or message.chat.first_name}</a> ({message.chat.id})"
-        f"\n\n---\n\n"
-        f"Caption:\n{message.caption or 'No Caption in media.'}"
-    )
-
-    if message.reply_to_message:
-        await log_message(message.reply_to_message, thread_id=extra_config.TAG_LOGGER_THREAD_ID)
-
-    await log_message(
-        message=message,
-        notice=notice,
-        extra_info=f"#TAG\n{mention} [{u_id}]\nMessage: \n<a href='{message.link}'>{message.chat.title}</a> ({message.chat.id})",
-        thread_id=extra_config.TAG_LOGGER_THREAD_ID,
-    )
-
-
-async def log_message(
-    message: Message,
-    notice: str | None = None,
-    extra_info: str | None = None,
-    thread_id: int = None,
-):
-    schedule_date = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=10)
-    try:
-        logged_message: Message = await message.forward(
-            extra_config.MESSAGE_LOGGER_CHAT,
-            message_thread_id=thread_id,
-            schedule_date=schedule_date,
-        )
-        if extra_info:
-            await logged_message.reply(extra_info, parse_mode=ParseMode.HTML, schedule_date=schedule_date)
-    except MessageIdInvalid:
-        schedule_date = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=10)
-        logged_message = await message.copy(
-            extra_config.MESSAGE_LOGGER_CHAT,
-            message_thread_id=thread_id,
-            schedule_date=schedule_date,
-        )
-        if notice:
-            await logged_message.reply(notice, parse_mode=ParseMode.HTML, schedule_date=schedule_date)
-    except Exception as e:
-        LOGGER.error(f"Error logging message [{get_name(message.chat)} - {message.id}]: {e}")
-        return
-
-    # wait till message is sent
-    wait_time = schedule_date - datetime.datetime.now(datetime.UTC)
-    await asyncio.sleep(wait_time.total_seconds())
-
-    return None

@@ -1,8 +1,9 @@
 from pyrogram.enums import ParseMode
 from pyrogram.types import InputMediaAudio, InputMediaPhoto
+from ub_core import BOT, Message, bot, utils
 
-from app import BOT, Message, bot
-from app.plugins.ai.gemini import AIConfig, Response, async_client
+from app.plugins.ai.gemini import Response, async_client, get_model_config
+from app.plugins.ai.gemini.code import upload_codebase
 from app.plugins.ai.gemini.utils import create_prompts, run_basic_check
 
 
@@ -19,6 +20,7 @@ async def question(bot: BOT, message: Message):
             -m: male voice
             -f: female voice
         -sp: to create speech between two people
+        -wc: uploads ub repo and core and extra modules [ if set ] to ai for context
 
     USAGE:
         .ai what is the meaning of life.
@@ -33,10 +35,12 @@ async def question(bot: BOT, message: Message):
         .ai -sp TTS the following conversation between Joe and Jane:
             Joe: How's it going today Jane?
             Jane: Not too bad, how about you?
+
+        .ai -wc how does the -wc flag in .ai work, what are the potential usages?
     """
 
     reply = message.replied
-    prompt = message.filtered_input.strip()
+    quoted_prompt = utils.wrap_in_block_quote(f"•> {message.filtered_input.strip()}", "**>", "<**")
 
     if reply and reply.media:
         resp_str = "<code>Processing... this may take a while.</code>"
@@ -51,18 +55,17 @@ async def question(bot: BOT, message: Message):
         await message_response.edit(e)
         return
 
-    kwargs = AIConfig.get_kwargs(flags=message.flags)
+    kwargs = get_model_config(flags=message.flags)
+
+    if "-wc" in message.flags:
+        prompts.append(await upload_codebase())
 
     response = await async_client.models.generate_content(contents=prompts, **kwargs)
 
     response = Response(response)
 
-    text = response.text_with_sources()
-
     if response.image:
-        await message_response.edit_media(
-            media=InputMediaPhoto(media=response.image_file, caption=f"**>\n•> {prompt}<**")
-        )
+        await message_response.edit_media(media=InputMediaPhoto(media=response.image_file, caption=quoted_prompt))
         return
 
     if response.audio:
@@ -71,20 +74,18 @@ async def question(bot: BOT, message: Message):
                 voice=response.audio_file,
                 waveform=response.audio_file.waveform,
                 duration=response.audio_file.duration,
-                caption=f"**>\n•> {prompt}<**",
+                caption=quoted_prompt,
             )
         else:
             await message_response.edit_media(
                 media=InputMediaAudio(
-                    media=response.audio_file,
-                    caption=f"**>\n•> {prompt}<**",
-                    duration=response.audio_file.duration,
+                    media=response.audio_file, caption=quoted_prompt, duration=response.audio_file.duration
                 )
             )
         return
 
     await message_response.edit(
-        text=f"**>\n•> {prompt}<**\n{text}",
+        text="\n".join((quoted_prompt, response.text_with_sources())),
         parse_mode=ParseMode.MARKDOWN,
         disable_preview=True,
     )
